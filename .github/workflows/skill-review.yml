@@ -1,0 +1,123 @@
+name: Strait AI contract review
+
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Git revision to compare against the selected workflow commit
+        required: true
+        default: HEAD^
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: strait-ai-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Contract, performance, and security review
+    if: >-
+      vars.STRAIT_AI_REVIEW_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.pull_request.head.repo.full_name == github.repository &&
+        !github.event.pull_request.draft &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      report_artifact: ${{ steps.report.outputs.artifact-id }}
+    env:
+      REVIEW_BASE: ${{ github.event.pull_request.base.sha || inputs.base_ref }}
+      REVIEW_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check review configuration and scope
+        env:
+          REVIEW_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$REVIEW_API_KEY" ]; then
+            echo '::error::STRAIT_AI_REVIEW_ENABLED requires the OPENAI_API_KEY repository secret.'
+            exit 1
+          fi
+          git rev-parse --verify --end-of-options "${REVIEW_BASE}^{commit}"
+          git fetch --no-tags origin "$REVIEW_HEAD"
+          git rev-parse --verify --end-of-options "${REVIEW_HEAD}^{commit}"
+          test -f skills/strait-contract-review/SKILL.md
+          test -f skills/strait-performance-check/SKILL.md
+          test -f skills/strait-security-review/SKILL.md
+          test -f .github/scripts/check-review-decision.py
+
+      - name: Apply repository review skills
+        id: codex
+        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: read-only
+          safety-strategy: drop-sudo
+          prompt-file: .github/codex/prompts/skill-review.md
+          output-file: ${{ runner.temp }}/strait-skill-review.md
+
+      - name: Retain review report
+        id: report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: strait-skill-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/strait-skill-review.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce review disposition
+        run: python3 .github/scripts/check-review-decision.py "$RUNNER_TEMP/strait-skill-review.md"
+
+      - name: Explain review result
+        if: always()
+        run: |
+          echo '## Strait AI review' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Inspect the strait-skill-review artifact for findings and evidence gaps.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The disposition gate is an AI recommendation, not a safety or latency certification.' >> "$GITHUB_STEP_SUMMARY"
+
+  comment:
+    name: Publish AI review to PR
+    needs: review
+    if: >-
+      always() && !cancelled() && github.event_name == 'pull_request' &&
+      needs.review.outputs.report_artifact != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Download this run's review report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
+          --name "strait-skill-review-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          --dir "$RUNNER_TEMP/strait-review"
+
+      - name: Create or update review comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_PR: ${{ github.event.pull_request.number }}
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python3 -B .github/scripts/publish-review-comment.py
+          "$RUNNER_TEMP/strait-review/strait-skill-review.md"

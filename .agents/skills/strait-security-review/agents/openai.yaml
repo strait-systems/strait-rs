@@ -1,0 +1,6 @@
+interface:
+  display_name: "Strait Security Review"
+  short_description: "Review protocol, dependency, and CI security risks"
+  default_prompt: "Use $strait-security-review to assess security risks in the current Strait changes."
+policy:
+  allow_implicit_invocation: true

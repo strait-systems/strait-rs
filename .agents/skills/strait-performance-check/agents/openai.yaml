@@ -1,0 +1,6 @@
+interface:
+  display_name: "Strait Performance Check"
+  short_description: "Assess latency evidence, benchmarks, and profiles"
+  default_prompt: "Use $strait-performance-check to evaluate the current Strait changes against the repository contract."
+policy:
+  allow_implicit_invocation: true

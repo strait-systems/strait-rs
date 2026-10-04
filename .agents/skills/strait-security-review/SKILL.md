@@ -1,0 +1,1 @@
+../../../skills/strait-security-review/SKILL.md

@@ -1,0 +1,45 @@
+# Rust build output
+/target/
+/fuzz/target/
+
+# Generated fuzz failures; promote selected cases to tracked regression fixtures
+/fuzz/artifacts/
+
+# Local benchmark, profiling, and replay output
+/artifacts/
+/profiles/
+/perf.data
+/perf.data.old
+/flamegraph.svg
+*.profraw
+*.profdata
+
+# Python helper caches and local virtual environments
+__pycache__/
+*.py[cod]
+/.venv/
+/venv/
+
+# Personal Claude Code instructions and permissions
+CLAUDE.local.md
+/.claude/settings.local.json
+
+# Rustfmt backups
+**/*.rs.bk
+
+# Local environment files
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Editor settings and temporary files
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# macOS metadata
+.DS_Store
+._*

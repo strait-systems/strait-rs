@@ -1,0 +1,36 @@
+[package]
+name = "strait"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "High-performance CEX market data connectivity and local order books in Rust."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/strait-systems/strait-rs"
+readme = "README.md"
+keywords = ["trading", "market-data", "orderbook", "crypto", "rust"]
+categories = ["network-programming"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "sync"] }
+
+# WebSocket
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+
+# HTTP client for Binance REST snapshots
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "2"
+
+# Logging / tracing
+tracing = "0.1"
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+criterion = { version = "0.7", features = ["html_reports"] }

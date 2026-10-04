@@ -1,0 +1,33 @@
+name: PR branch policy
+
+# Use the trusted base workflow; never check out or execute PR code in this job.
+on:
+  pull_request_target:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions: {}
+
+jobs:
+  branch-policy:
+    name: PR branch policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate PR source
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        shell: bash
+        run: |
+          if [ "$BASE_BRANCH" = "main" ]; then
+            if [ "$HEAD_BRANCH" != "dev" ] || [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+              echo '::error::main only accepts PRs from this repository dev branch.'
+              exit 1
+            fi
+          elif [ "$BASE_BRANCH" != "dev" ]; then
+            echo '::error::Unsupported PR target branch.'
+            exit 1
+          fi
+          echo 'PR branch policy passed.'
