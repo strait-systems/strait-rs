@@ -5,8 +5,8 @@ and reliable recovery. The main objective is to minimize the time between receiv
 market data and making the resulting valid book view usable by a consumer, with
 particular attention to p99 and p99.9 under sustained and burst load.
 
-The project currently contains module placeholders. No measured latency results or
-numerical guarantees exist yet. Measurement begins with connector implementation;
+The project has a partial Spot protocol core and local decoder microbenchmarks.
+No integrated latency results or numerical guarantees exist yet. Measurement begins with connector implementation;
 initial numerical budgets are agreed after integrated baselines, before expanding
 to multiple instruments. Budgets must state hardware, workload, and operating load.
 

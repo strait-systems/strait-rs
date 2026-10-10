@@ -1,0 +1,11 @@
+[package]
+name = "spot_stream"
+version = "0.1.0"
+authors = ["sbetool"]
+description = "Spot data streams SBE message schema"
+edition = "2021"
+license = "Apache-2.0"
+
+[lib]
+name = "spot_stream"
+path = "src/lib.rs"

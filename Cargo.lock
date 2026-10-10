@@ -1204,6 +1204,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "spot_sbe"
+version = "0.1.0"
+
+[[package]]
+name = "spot_stream"
+version = "0.1.0"
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1218,6 +1226,8 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "spot_sbe",
+ "spot_stream",
  "thiserror",
  "tokio",
  "tokio-tungstenite",
