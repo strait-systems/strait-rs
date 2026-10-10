@@ -114,8 +114,9 @@ assumed. A missed budget requires a fix or an explicitly reviewed tradeoff.
 
 ### Harnesses, Tools, and Artifacts
 
-`criterion` is currently available as a development dependency for component
-benchmarks; no benchmark targets or profiling harnesses are implemented yet.
+`criterion` is available for component benchmarks. `benches/spot_sbe.rs` exercises
+the implemented Spot readers; offline probe and smoke commands are documented in
+[Spot SBE](spot-sbe.md). Other component/integrated harnesses remain unimplemented.
 The integrated harness must provide independent arrivals, per-message/view timing,
 and distributions as specified in [latency requirements](latency.md). Choose CPU,
 allocation, and scheduler profilers appropriate to the platform and question,

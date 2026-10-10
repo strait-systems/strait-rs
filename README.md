@@ -2,8 +2,9 @@
 
 **Low-latency CEX market data connectivity and local order books in Rust.**
 
-> **Status:** Early development. The crate currently contains module placeholders;
-> market data functionality is not implemented and APIs are unstable.
+> **Status:** Early development. Spot SBE depth/snapshot decoding and a pure sequence
+> gate are implemented with offline fixtures. Network sessions, recovery orchestration,
+> and local books are not implemented; APIs are unstable.
 
 Strait is an open-source Rust project focused on public market data: exchange feeds, snapshot/update synchronization,
 sequence validation, local L2 books, and recovery. **Low latency is a core design
@@ -15,11 +16,25 @@ through every development phase; see the [measurement workflow](docs/testing.md#
 Type design, crate selection, strings/copies, allocation/reclamation, CPU and syscall
 costs, queueing, task handoffs, and publication are part of the latency budget. **Single writer per instrument** is the default
 mutation model. High-frequency production use is the acceptance target, not a
-claim about the current skeleton.
+claim about the current implementation.
 Numerical targets will be set from reproducible baselines on documented hardware;
-no latency result is claimed yet. See [latency requirements](docs/latency.md).
+only local decoder microbenchmarks exist, not integrated latency results.
+See [latency requirements](docs/latency.md).
 The [Day 0 contract](docs/latency.md#day-0-operating-contract) fixes environment,
 load, freshness, resource limits, and evidence required with each implementation.
+
+## High-frequency & Low-latency Design
+
+The first implemented component is the **offline Spot SBE protocol core**:
+
+- **Bounded decoding:** validate message layouts and count/byte limits before using generated accessors.
+- **Exact numerics:** checked integer prices/quantities, with conversion factors prepared once per batch.
+- **Reusable storage:** preallocate one level buffer and return borrowed views; the small-fixture probe records zero warmed heap allocations.
+- **Explicit sequence acceptance:** stage an action, then advance sequence state only after application is acknowledged.
+
+See the [design walkthrough and performance evidence](docs/low-latency-design.md)
+for source links, measured tradeoffs, and the planned single-writer pipeline.
+Local microbenchmarks exist; integrated throughput and p99/p99.9 remain unmeasured.
 
 ## Initial Scope
 
@@ -71,6 +86,7 @@ The [documentation guide](docs/README.md) explains where each requirement belong
 - [Connections](docs/connections.md): lifecycle, continuity, freshness, and aggregate capacity
 - [Security and resilience](docs/security.md): input safety, supervision, supply chain, and verification gates
 - [Roadmap](docs/roadmap.md): staged deliverables and acceptance criteria
+- [Spot SBE protocol core](docs/spot-sbe.md): selected feed, snapshot protocol, offline example and evidence
 
 Contributor tooling: [shared agent skills](docs/contributing/agent-skills.md).
 Maintainer setup: [AI review](docs/maintainers/ai-review.md) and

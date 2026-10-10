@@ -7,7 +7,9 @@ isolation justify them.
 
 ## Source Layout
 
-These modules are placeholders, not implemented capabilities.
+Most modules are placeholders. The Spot protocol core implements decoding and a pure
+sequence gate; see [its exact scope](spot-sbe.md). The following layout describes
+the target architecture, not an implemented network pipeline.
 
 ```text
 src/
@@ -45,7 +47,7 @@ docs/
 - `market_data`: instrument identity including venue, product, and venue symbol;
   exact prices/quantities with explicit units; snapshots, absolute level updates,
   validity, freshness, and timing metadata. Spot `BTCUSDT` and USDⓈ-M `BTCUSDT` are distinct identities.
-- `connector::binance::spot`: Spot transport, wire decoding, REST snapshots,
+- `connector::binance::spot`: Spot transport, wire decoding, WebSocket API SBE snapshots,
   sequence validation, synchronization, and recovery.
 - `connector::binance::usdm`: USDⓈ-M perpetual transport, wire decoding, REST
   snapshots, sequence validation, synchronization, and recovery.
@@ -63,7 +65,7 @@ only when actual duplication appears; product protocol rules remain separate.
 ```text
 Product WebSocket → product decoding → product synchronization/sequence validation
                                              ↑
-                                      Product REST snapshot
+                                  Product-specific snapshot request
                                              ↓
                                   Ordered shared book actions
                                              ↓
@@ -78,7 +80,7 @@ will be introduced when multi-exchange work begins.
 
 The architecture must support the [latency requirements](latency.md), including
 type representation, ownership, and dependency selection as well as timing.
-These are implementation requirements, not claims about current placeholders.
+These are implementation requirements, not claims about the partial protocol core.
 
 - Timestamp complete application-message receipt with a monotonic clock before
   queueing or decoding. Carry its timing context through accepted book actions
@@ -88,7 +90,7 @@ These are implementation requirements, not claims about current placeholders.
   the complete receipt-to-view path.
 - Decode, validate, normalize, and mutate the book within the owning task where
   practical. Module boundaries do not require additional tasks or queues.
-- Keep REST requests, reconnect orchestration, blocking I/O, and synchronous log
+- Keep snapshot requests, reconnect orchestration, blocking I/O, and synchronous log
   output off the steady-state update path. Measure tracing/metrics overhead.
 - Reuse buffers where measurements justify it; avoid unnecessary payload copies,
   repeated string conversions, per-level task spawning, and full-book clones
@@ -125,7 +127,7 @@ shared locks around book state.
 
 ```text
 WebSocket reader ── bounded queue ──► Market data task
-Snapshot input (REST or stream) ───►     ├─ Synchronization state machine
+Snapshot input (REST or WS API) ──►     ├─ Synchronization state machine
                                         ├─ Local L2 book
                                         └─ Consumer view publication
 ```

@@ -6,7 +6,9 @@ Low-latency design and measurement run through every phase; Phase 4 deepens
 optimization and resilience work. Benchmarking and profiling follow the
 [continuous measurement workflow](testing.md#continuous-benchmarking-and-profiling)
 throughout development. See [latency requirements](latency.md).
-All items below are planned; the current crate contains module placeholders only.
+Phase milestones remain incomplete. The Spot protocol core now supplies offline
+depth/snapshot decoding, sequence gating, fixtures, and component benchmarks;
+see [implementation scope and evidence](spot-sbe.md). This is not a completed connector.
 
 ## Phase 0 · Shared Data Contract
 
@@ -55,7 +57,8 @@ Each workstream implements:
 - [ ] Supervised deadlines/heartbeats, generation isolation, serialized outbound
   control, capped backoff with jitter, retry/rate limits, and deterministic tests
   under the [connection contract](connections.md).
-- [ ] Product-specific message decoding and REST snapshot acquisition.
+- [ ] Product-specific message decoding and snapshot acquisition (Spot WebSocket API
+  SBE; USD-M REST).
 - [ ] Pure synchronization state machine and sequence validation.
 - [ ] Bounded buffering, explicit overflow reporting, and stale-cycle isolation.
 - [ ] Reconnection and resynchronization actions.

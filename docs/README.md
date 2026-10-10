@@ -1,15 +1,18 @@
 # Documentation Guide
 
+For a quick introduction to the implemented low-latency mechanisms and their evidence,
+start with the [design walkthrough](low-latency-design.md).
 Read [design and scope](design.md) for project direction, then [architecture](architecture.md)
 for modules and data flow. Before implementing a component, read its applicable
-contracts below. The repository remains an early skeleton; requirements describe
-the acceptance target rather than implemented or measured capabilities.
+contracts below. The repository has an offline Spot protocol core; broader pipeline
+requirements describe the acceptance target rather than completed capabilities.
 
 ## Design and Engineering
 
 | Document | Owns |
 | --- | --- |
 | [Design and scope](design.md) | Concise project boundaries and design decisions |
+| [Low-latency design walkthrough](low-latency-design.md) | Visitor overview of implemented mechanisms, evidence, tradeoffs, and planned architecture |
 | [Architecture](architecture.md) | Module responsibilities, data flow, and initial interfaces |
 | [Production engineering](engineering.md) | Single-writer ownership, implementation rules, string/allocation/CPU/syscall requirements |
 | [Latency requirements](latency.md) | Day 0 operating contract, type/crate evaluation, timing boundaries, workloads, budgets, and regression policy |
@@ -17,6 +20,7 @@ the acceptance target rather than implemented or measured capabilities.
 | [Connections](connections.md) | Connection lifecycle, backoff/jitter, sequence continuity, stale detection, and aggregate capacity |
 | [Security and resilience](security.md) | Untrusted input, task supervision, supply chain, and security verification |
 | [Roadmap](roadmap.md) | Implementation phases and milestone acceptance |
+| [Spot SBE](spot-sbe.md) | Selected feed/schemas, implemented protocol-core scope, replay and evidence |
 
 Keep detailed requirements in their owning document. Other documents summarize and
 link to them; skill instructions apply these contracts rather than maintain copies.
