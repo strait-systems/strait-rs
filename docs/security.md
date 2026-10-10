@@ -3,7 +3,8 @@
 Public market data is untrusted input. Production safety includes preventing false
 books, silent stale output, CPU/memory exhaustion, and compromised builds. Apply this
 contract alongside [production engineering](engineering.md) and [testing](testing.md).
-The skeleton has no implemented parser or transport to certify yet.
+Spot has a bounded SBE protocol reader with offline tests and mutation smoke coverage.
+Transport is not implemented; no security certification is claimed.
 
 ## Input and Transport
 

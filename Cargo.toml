@@ -11,6 +11,9 @@ keywords = ["trading", "market-data", "orderbook", "crypto", "rust"]
 categories = ["network-programming"]
 
 [dependencies]
+# Official SbeTool output; Java is used only when regenerating this local crate.
+spot_stream = { version = "0.1.0", path = "generated/binance-stream" }
+spot_sbe = { version = "0.1.0", path = "generated/binance-api" }
 # Async runtime
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "sync"] }
 
@@ -34,3 +37,7 @@ tracing = "0.1"
 [dev-dependencies]
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 criterion = { version = "0.7", features = ["html_reports"] }
+
+[[bench]]
+name = "spot_sbe"
+harness = false
