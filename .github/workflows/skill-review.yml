@@ -25,8 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
+    outputs:
+      eligible: ${{ steps.eligibility.outputs.eligible }}
     steps:
       - name: Explain review eligibility
+        id: eligibility
         env:
           REVIEW_ENABLED: ${{ vars.STRAIT_AI_REVIEW_ENABLED }}
           EVENT_NAME: ${{ github.event_name }}
@@ -38,24 +41,40 @@ jobs:
           MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
           SAME_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           READY: ${{ !github.event.pull_request.draft }}
-          TRUSTED_AUTHOR: ${{ contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           import json
           import os
+          import subprocess
 
           keys = (
               'REVIEW_ENABLED', 'EVENT_NAME', 'REPOSITORY', 'HEAD_REPOSITORY',
               'PR_DRAFT', 'AUTHOR_ASSOCIATION', 'ENABLED', 'MANUAL',
-              'SAME_REPOSITORY', 'READY', 'TRUSTED_AUTHOR',
+              'SAME_REPOSITORY', 'READY', 'PR_AUTHOR',
           )
           values = {key: os.environ[key] for key in keys}
+          values['AUTHOR_PERMISSION'] = 'not_checked'
+          values['TRUSTED_AUTHOR'] = 'false'
+          if all(values[key] == 'true' for key in ('ENABLED', 'SAME_REPOSITORY', 'READY')) and values['MANUAL'] != 'true':
+              result = subprocess.run(
+                  ['gh', 'api', f"repos/{values['REPOSITORY']}/collaborators/{values['PR_AUTHOR']}/permission"],
+                  check=True, capture_output=True, text=True, timeout=30,
+              )
+              permission = json.loads(result.stdout)['permission']
+              if permission not in ('admin', 'maintain', 'write', 'triage', 'read', 'none'):
+                  raise ValueError('Unexpected repository permission; refusing review')
+              values['AUTHOR_PERMISSION'] = permission
+              values['TRUSTED_AUTHOR'] = str(permission in ('admin', 'maintain', 'write')).lower()
           eligible = values['ENABLED'] == 'true' and (
               values['MANUAL'] == 'true' or all(
                   values[key] == 'true'
                   for key in ('SAME_REPOSITORY', 'READY', 'TRUSTED_AUTHOR')
               )
           )
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('eligible=' + str(eligible).lower() + '\n')
           values['EXPECTED_REVIEW_JOB'] = 'run' if eligible else 'skip'
           # Escape metadata so it cannot inject log commands or summary markup.
           report = json.dumps(values, indent=2, ensure_ascii=True)
@@ -66,12 +85,8 @@ jobs:
 
   review:
     name: Contract, performance, and security review
-    if: >-
-      vars.STRAIT_AI_REVIEW_ENABLED == 'true' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.pull_request.head.repo.full_name == github.repository &&
-        !github.event.pull_request.draft &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)))
+    needs: diagnostics
+    if: needs.diagnostics.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:

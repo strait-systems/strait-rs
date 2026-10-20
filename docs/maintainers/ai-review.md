@@ -14,7 +14,7 @@ To enable it after merging the workflow and skills:
 1. Add an OpenAI API key as repository Actions secret `OPENAI_API_KEY`.
 2. Set repository Actions variable `STRAIT_AI_REVIEW_ENABLED` to `true`.
 3. Open/update a non-draft, same-repository PR targeting `dev` or `main` from an
-   owner/member/collaborator, or run **Strait AI contract review** manually with a
+   author with repository write, maintain, or admin permission, or run **Strait AI contract review** manually with a
    comparison base revision.
 
 Automatic AI review runs before merging into `dev` or `main`. Pushes alone and PRs
@@ -32,7 +32,12 @@ failures fail the job explicitly. Disabling the variable stops future invocation
 The independent **AI review eligibility diagnostics** job records the enablement
 variable, event, PR source repository, draft status, author association, and each
 eligibility condition in its log and run summary, including the expected run/skip
-decision. It uses no secrets, token permissions, checkout, or OpenAI calls. For a
+decision. It queries the PR author's actual repository permission through the
+[GitHub permissions API](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)
+using only the built-in token's implicit metadata-read access. Author association
+is diagnostic only. API errors or unexpected responses fail the job and prevent
+review; read/triage/no-access authors are skipped. No extra secret, checkout, or
+OpenAI call is used by diagnostics. For a
 skipped review, inspect this job on the same run; current PR metadata and settings
 may differ from those at trigger time. Manual runs also produce diagnostics, with
 PR-only fields absent or inapplicable.
