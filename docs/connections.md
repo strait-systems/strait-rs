@@ -2,7 +2,9 @@
 
 Connection correctness is part of production acceptance, alongside single-writer
 ownership and low tail latency. Initial implementations are Binance Spot and USD-M
-WebSockets plus REST snapshots. Future transports follow the same ownership, limits,
+WebSockets plus product-specific snapshot requests: Spot selects a separate persistent
+WebSocket API SBE session; USD-M retains REST snapshots. Spot REST SBE is a benchmark
+comparison, not an automatic fallback. Future transports follow the same ownership, limits,
 liveness, and recovery principles, with their actual framing/delivery semantics;
 this contract does not claim they are implemented or mandate a universal transport trait.
 
@@ -45,7 +47,7 @@ not synchronize. Tests inject a deterministic RNG and clock; production avoids a
 shared identical deterministic schedule. A zero jitter sample must still respect
 global attempt rate limits.
 
-Bound concurrent dials, REST snapshots, subscriptions, and scheduled retries. Enforce
+Bound concurrent dials, snapshot requests, subscriptions, and scheduled retries. Enforce
 venue-wide limits across connections, including control messages where applicable.
 Document feed-specific limits against official protocol documentation when implementing
 or changing a feed; no venue limit or sequence formula is assumed here. Record attempts,
