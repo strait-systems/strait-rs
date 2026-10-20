@@ -273,7 +273,7 @@ fn append_snapshot_group(
     Ok(())
 }
 
-/// Validate strict price ordering and reject duplicate snapshot prices.
+/// Validate strict side ordering and reject duplicate, locked, or crossed prices.
 fn validate_snapshot_order(storage: &LevelBuffer) -> Result<(), DecodeError> {
     let (bids, asks) = storage.sides();
     if bids
@@ -282,6 +282,11 @@ fn validate_snapshot_order(storage: &LevelBuffer) -> Result<(), DecodeError> {
         || asks
             .windows(2)
             .any(|w| w[0].price.units() >= w[1].price.units())
+    {
+        return Err(DecodeError::InvalidField);
+    }
+    if let (Some(bid), Some(ask)) = (bids.first(), asks.first())
+        && bid.price.units() >= ask.price.units()
     {
         return Err(DecodeError::InvalidField);
     }

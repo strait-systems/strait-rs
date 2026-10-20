@@ -51,6 +51,58 @@ fn limits() -> DecodeLimits {
         max_rate_limits: 8,
     }
 }
+
+#[test]
+fn snapshot_rejects_locked_and_crossed_best_prices() {
+    let mut decoder = Decoder::new(limits()).unwrap();
+    for best_ask in [6_500_000_i64, 6_499_999] {
+        let mut bytes = SNAPSHOT.to_vec();
+        // The fixture's sole ask starts at byte 106; each side remains ordered.
+        bytes[106..114].copy_from_slice(&best_ask.to_le_bytes());
+        assert_eq!(
+            decoder
+                .decode_snapshot(&bytes, "snap1", scales())
+                .unwrap_err(),
+            DecodeError::InvalidField
+        );
+        // A rejected snapshot must leave the reusable decoder usable.
+        let response = decoder
+            .decode_snapshot(SNAPSHOT, "snap1", scales())
+            .unwrap();
+        let snapshot::SnapshotResult::Depth(book) = response.result else {
+            panic!("expected depth snapshot")
+        };
+        assert_eq!(book.bids[0].price.units(), 6_500_000);
+        assert_eq!(book.asks[0].price.units(), 6_500_100);
+        assert_eq!((book.bids.len(), book.asks.len()), (2, 1));
+    }
+}
+
+#[test]
+fn snapshot_accepts_empty_sides() {
+    let mut decoder = Decoder::new(limits()).unwrap();
+    for (keep_bids, keep_asks) in [(true, false), (false, true), (false, false)] {
+        let mut bytes = SNAPSHOT.to_vec();
+        // Group headers are six bytes: block length u16, count u32.
+        // Remove asks first so the original bid offsets remain valid.
+        if !keep_asks {
+            bytes[102..106].copy_from_slice(&0_u32.to_le_bytes());
+            bytes.drain(106..122);
+        }
+        if !keep_bids {
+            bytes[64..68].copy_from_slice(&0_u32.to_le_bytes());
+            bytes.drain(68..100);
+        }
+        let payload_len = u32::try_from(bytes.len() - 44).unwrap();
+        bytes[40..44].copy_from_slice(&payload_len.to_le_bytes());
+        let response = decoder.decode_snapshot(&bytes, "snap1", scales()).unwrap();
+        let snapshot::SnapshotResult::Depth(book) = response.result else {
+            panic!("expected depth snapshot")
+        };
+        assert_eq!(book.bids.len(), if keep_bids { 2 } else { 0 });
+        assert_eq!(book.asks.len(), usize::from(keep_asks));
+    }
+}
 fn scales() -> Scales {
     Scales {
         price: Scale::new(2).unwrap(),
