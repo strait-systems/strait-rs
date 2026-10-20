@@ -29,6 +29,14 @@ requirements. Manual dispatch defaults to comparing against `HEAD^`; select the
 appropriate base and a trusted workflow revision. Configuration errors and action
 failures fail the job explicitly. Disabling the variable stops future invocations.
 
+The independent **AI review eligibility diagnostics** job records the enablement
+variable, event, PR source repository, draft status, author association, and each
+eligibility condition in its log and run summary, including the expected run/skip
+decision. It uses no secrets, token permissions, checkout, or OpenAI calls. For a
+skipped review, inspect this job on the same run; current PR metadata and settings
+may differ from those at trigger time. Manual runs also produce diagnostics, with
+PR-only fields absent or inapplicable.
+
 Reports are retained as workflow artifacts for 14 days. Baseline policies are checked
 out, and candidate code is inspected through Git objects; merge these policy files
 into the trusted base before enabling the workflow. The workflow has read-only

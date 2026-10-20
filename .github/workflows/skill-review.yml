@@ -20,6 +20,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  diagnostics:
+    name: AI review eligibility diagnostics
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Explain review eligibility
+        env:
+          REVIEW_ENABLED: ${{ vars.STRAIT_AI_REVIEW_ENABLED }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_DRAFT: ${{ toJSON(github.event.pull_request.draft) }}
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          ENABLED: ${{ vars.STRAIT_AI_REVIEW_ENABLED == 'true' }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+          SAME_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          READY: ${{ !github.event.pull_request.draft }}
+          TRUSTED_AUTHOR: ${{ contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          keys = (
+              'REVIEW_ENABLED', 'EVENT_NAME', 'REPOSITORY', 'HEAD_REPOSITORY',
+              'PR_DRAFT', 'AUTHOR_ASSOCIATION', 'ENABLED', 'MANUAL',
+              'SAME_REPOSITORY', 'READY', 'TRUSTED_AUTHOR',
+          )
+          values = {key: os.environ[key] for key in keys}
+          eligible = values['ENABLED'] == 'true' and (
+              values['MANUAL'] == 'true' or all(
+                  values[key] == 'true'
+                  for key in ('SAME_REPOSITORY', 'READY', 'TRUSTED_AUTHOR')
+              )
+          )
+          values['EXPECTED_REVIEW_JOB'] = 'run' if eligible else 'skip'
+          # Escape metadata so it cannot inject log commands or summary markup.
+          report = json.dumps(values, indent=2, ensure_ascii=True)
+          print(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('## AI review eligibility\n\n```json\n' + report + '\n```\n')
+          PY
+
   review:
     name: Contract, performance, and security review
     if: >-
