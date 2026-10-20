@@ -5,9 +5,105 @@ built. Separate product modules provide independent contribution areas.
 Introduce workspace crates only when independent dependencies, publishing, or build
 isolation justify them.
 
+## System Context
+
+The diagram below describes a proposed trading-system context around Strait.
+Only the public market-data portion belongs to the current repository scope;
+strategies, OMS, private account streams, order execution, risk control, Kafka,
+and databases are external integration concepts, not implemented capabilities or
+additional roadmap commitments. The initial Binance Spot / USD-M scope remains
+unchanged; see the [roadmap](roadmap.md) and [implemented Spot core](spot-sbe.md).
+
+[![Proposed system architecture: exchange connections, instrument writers, latest market views, strategies, account owner, risk checks, and persistence](architecture.svg)](architecture.svg)
+
+[Open the full-size diagram](architecture.svg).
+
+Boxes represent logical responsibilities, not necessarily separate tasks, queues,
+threads, or crates. Solid arrows represent data flow or calls; dotted supervisor
+arrows represent lifecycle management. Failure/recovery flows and persistence
+workers are omitted from this overview; the existing engineering and connection
+contracts still apply. The diagram does not establish latency or readiness evidence.
+
+### Market Data Ownership and Publication
+
+- Each instrument has exactly one logical writer owning its mutable L2 book,
+  sequence state, synchronization cycle, and bounded recovery buffer. A writer
+  may own several instruments while preserving independent state and bounded,
+  fair processing work per instrument.
+- Readers deliver increments through a bounded input queue. Snapshot workers
+  perform product-specific I/O outside the writer and return owned or lifetime-safe
+  results tagged with connection generation and synchronization cycle. Only the
+  writer validates alignment, installs snapshots, replays buffered increments,
+  and publishes the resulting view. A separate snapshot-result channel or a
+  per-request result is sufficient; no accumulating snapshot queue is implied.
+- Connection generation identifies the source connection; synchronization cycle
+  identifies an instrument rebuild. Neither replaces product-specific sequence
+  validation. Connection lifecycle belongs to its supervisor.
+- The Market View Registry maps full instrument identities to subscription handles.
+  Strategies resolve handles during setup and observe independently; normal updates
+  do not require central registry forwarding. Writers remain the sole publishers.
+  Latest immutable views may skip intermediate versions for slow consumers, while
+  book-building increments must never be silently dropped. Views carry instrument,
+  cycle, version, validity, freshness, and timing metadata; consumers check age at use.
+
+### Connections
+
+Connection Manager denotes a logical connection-management subsystem. Individual
+supervisors own actual connection lifecycles; readers and senders exchange data
+directly with the venue rather than through a central forwarding task. Shared
+management coordinates registry, admission, subscription and request budgets, and
+shutdown. A multiplexed socket has one lifecycle owner, not one supervisor per
+symbol or business arrow. Snapshot/query HTTP clients may instead use bounded
+connection pools and request scheduling. Initial Spot snapshots use a separate
+WebSocket API SBE session; USD-M snapshots use REST.
+
+The diagram's query request/result arrows describe a logical API operation.
+A request client may receive responses itself or share a response reader/handler;
+request correlation and a single serialized outbound path must be explicit.
+Detailed lifecycle, generation isolation, and aggregate capacity requirements live
+in the [connection contract](connections.md).
+
+### External OMS, Risk, and Persistence
+
+These responsibilities explain the surrounding system, without prescribing new
+Strait modules or dependencies:
+
+- Strategies submit account-routed order intents. An intent can carry strategy
+  instance, code/configuration version, decision time, relevant market-view
+  references, and key signal/reason fields; a separate strategy-decision store
+  is optional. View references alone cannot reproduce decisions without retained
+  corresponding inputs.
+- The OMS Account Owner consumes intents and is the sole writer of account,
+  active-order, reservation, and reconciliation state. It calls risk checks and
+  reserves funds on approval within the same ordered operation. Risk Control
+  supplies rules and decisions, rather than maintaining another mutable copy of
+  account balances. Available funds and worst-case exposure include outstanding
+  commitments; Spot and USD-M require distinct asset/margin semantics.
+- Approved commands pass through a bounded execution queue to the Execution
+  Sender. Send results, private-stream events, and query results return as
+  correlated account inputs. The owner applies deduplication and reconciliation;
+  pending cancellation or unknown send outcome does not alone release reservations.
+- The Account Owner emits accepted business facts, including intents and risk
+  decisions, into a bounded persistence queue. Persistence workers publish to
+  Kafka; database consumers apply events idempotently. The database boxes denote
+  intents, risk decisions, order events/current state, fills, account ledger, and
+  reconciliation records. Correlation IDs and account event sequences preserve
+  traceability; queue arrival alone does not establish business causality.
+- Persistence is asynchronous in this overview. An in-memory queue has a crash-loss
+  window, and Kafka delivery/durability depends on the selected configuration.
+  If execution requires durable audit evidence first, persistence acknowledgement
+  must gate order release in the OMS state machine. Queue limits, backpressure,
+  and storage-failure policy must be specified before implementation.
+- Market-data recording is a separate output. Specify whether it retains raw
+  inputs/snapshots, accepted book actions, or published views: these support
+  different replay guarantees. Latest BBO views cannot reconstruct a full book.
+  Recording must not introduce blocking storage I/O into the instrument writer.
+
 ## Source Layout
 
-These modules are placeholders, not implemented capabilities.
+Most modules are placeholders. The Spot protocol core implements decoding and a pure
+sequence gate; see [its exact scope](spot-sbe.md). The following layout describes
+the target architecture, not an implemented network pipeline.
 
 ```text
 src/
@@ -45,7 +141,7 @@ docs/
 - `market_data`: instrument identity including venue, product, and venue symbol;
   exact prices/quantities with explicit units; snapshots, absolute level updates,
   validity, freshness, and timing metadata. Spot `BTCUSDT` and USDⓈ-M `BTCUSDT` are distinct identities.
-- `connector::binance::spot`: Spot transport, wire decoding, REST snapshots,
+- `connector::binance::spot`: Spot transport, wire decoding, WebSocket API SBE snapshots,
   sequence validation, synchronization, and recovery.
 - `connector::binance::usdm`: USDⓈ-M perpetual transport, wire decoding, REST
   snapshots, sequence validation, synchronization, and recovery.
@@ -63,7 +159,7 @@ only when actual duplication appears; product protocol rules remain separate.
 ```text
 Product WebSocket → product decoding → product synchronization/sequence validation
                                              ↑
-                                      Product REST snapshot
+                                  Product-specific snapshot request
                                              ↓
                                   Ordered shared book actions
                                              ↓
@@ -78,7 +174,7 @@ will be introduced when multi-exchange work begins.
 
 The architecture must support the [latency requirements](latency.md), including
 type representation, ownership, and dependency selection as well as timing.
-These are implementation requirements, not claims about current placeholders.
+These are implementation requirements, not claims about the partial protocol core.
 
 - Timestamp complete application-message receipt with a monotonic clock before
   queueing or decoding. Carry its timing context through accepted book actions
@@ -88,7 +184,7 @@ These are implementation requirements, not claims about current placeholders.
   the complete receipt-to-view path.
 - Decode, validate, normalize, and mutate the book within the owning task where
   practical. Module boundaries do not require additional tasks or queues.
-- Keep REST requests, reconnect orchestration, blocking I/O, and synchronous log
+- Keep snapshot requests, reconnect orchestration, blocking I/O, and synchronous log
   output off the steady-state update path. Measure tracing/metrics overhead.
 - Reuse buffers where measurements justify it; avoid unnecessary payload copies,
   repeated string conversions, per-level task spawning, and full-book clones
@@ -125,7 +221,7 @@ shared locks around book state.
 
 ```text
 WebSocket reader ── bounded queue ──► Market data task
-Snapshot input (REST or stream) ───►     ├─ Synchronization state machine
+Snapshot input (REST or WS API) ──►     ├─ Synchronization state machine
                                         ├─ Local L2 book
                                         └─ Consumer view publication
 ```
